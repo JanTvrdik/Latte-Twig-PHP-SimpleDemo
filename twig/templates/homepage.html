@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+
+{% block title %}My personal homepage{% endblock %}
+
+{% block content %}
+	<h1>Homepage</h1>
+	{% if pages %}
+		<ul>
+			{% for page in pages %}
+				<li {% if page == currentPage %}class="current"{% endif %}>{{ page }}</li>
+			{% endfor %}
+		</ul>
+	{% else %}
+		<p>empty</p>
+	{% endif %}
+{% endblock %}

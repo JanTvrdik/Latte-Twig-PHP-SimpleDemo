@@ -1,0 +1,14 @@
+{layout layout.latte}
+
+{#title}My personal homepage{/#}
+
+{#content}
+	<h1>Homepage</h1>
+	{if $pages}
+		<ul n:inner-foreach="$pages as $page">
+			<li n:class="$page == $currentPage ? current">{$page}</li>
+		</ul>
+	{else}
+		<p>empty</p>
+	{/if}
+{/#}
