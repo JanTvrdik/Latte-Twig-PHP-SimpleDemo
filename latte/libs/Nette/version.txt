@@ -1,1 +1,1 @@
-Nette Framework 2.1dev (revision ada9342 released on 2013-07-22)
+Nette Framework 2.1.1 (revision 9e7e5fc released on 2014-02-11)

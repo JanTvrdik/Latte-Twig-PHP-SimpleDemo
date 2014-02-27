@@ -2,18 +2,14 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Application\Diagnostics;
 
 use Nette,
 	Nette\Application\Routers,
-	Nette\Application\UI\Presenter, // templates
+	Nette\Application\UI\Presenter,
 	Nette\Diagnostics\Dumper;
 
 
@@ -30,11 +26,17 @@ class RoutingPanel extends Nette\Object implements Nette\Diagnostics\IBarPanel
 	/** @var Nette\Http\IRequest */
 	private $httpRequest;
 
+	/** @var Nette\Application\IPresenterFactory */
+	private $presenterFactory;
+
 	/** @var array */
 	private $routers = array();
 
 	/** @var Nette\Application\Request */
 	private $request;
+
+	/** @var ReflectionClass|ReflectionMethod */
+	private $source;
 
 
 	public static function initializePanel(Nette\Application\Application $application)
@@ -49,10 +51,11 @@ class RoutingPanel extends Nette\Object implements Nette\Diagnostics\IBarPanel
 	}
 
 
-	public function __construct(Nette\Application\IRouter $router, Nette\Http\IRequest $httpRequest)
+	public function __construct(Nette\Application\IRouter $router, Nette\Http\IRequest $httpRequest, Nette\Application\IPresenterFactory $presenterFactory)
 	{
 		$this->router = $router;
 		$this->httpRequest = $httpRequest;
+		$this->presenterFactory = $presenterFactory;
 	}
 
 
@@ -102,6 +105,7 @@ class RoutingPanel extends Nette\Object implements Nette\Diagnostics\IBarPanel
 			$matched = 'may';
 			if (empty($this->request)) {
 				$this->request = $request;
+				$this->findSource();
 				$matched = 'yes';
 			}
 		}
@@ -114,6 +118,34 @@ class RoutingPanel extends Nette\Object implements Nette\Diagnostics\IBarPanel
 			'request' => $request,
 			'module' => rtrim($module, ':')
 		);
+	}
+
+
+	private function findSource()
+	{
+		$request = $this->request;
+		$presenter = $request->getPresenterName();
+		try {
+			$class = $this->presenterFactory->getPresenterClass($presenter);
+		} catch (Nette\Application\InvalidPresenterException $e) {
+			return;
+		}
+		$rc = Nette\Reflection\ClassType::from($class);
+
+		if ($rc->isSubclassOf('Nette\Application\UI\Presenter')) {
+			if (isset($request->parameters[Presenter::SIGNAL_KEY])) {
+				$method = $class::formatSignalMethod($request->parameters[Presenter::SIGNAL_KEY]);
+
+			} elseif (isset($request->parameters[Presenter::ACTION_KEY])) {
+				$action = $request->parameters[Presenter::ACTION_KEY];
+				$method = $class::formatActionMethod($action);
+				if (!$rc->hasMethod($method)) {
+					$method = $class::formatRenderMethod($action);
+				}
+			}
+		}
+
+		$this->source = isset($method) && $rc->hasMethod($method) ? $rc->getMethod($method) : $rc;
 	}
 
 }

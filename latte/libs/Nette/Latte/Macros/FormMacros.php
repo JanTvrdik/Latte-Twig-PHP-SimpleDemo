@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Latte\Macros;
@@ -16,8 +12,7 @@ use Nette,
 	Nette\Latte\MacroNode,
 	Nette\Latte\PhpWriter,
 	Nette\Latte\CompileException,
-	Nette\Forms\Form,
-	Nette\Utils\Strings;
+	Nette\Forms\Form;
 
 
 /**
@@ -26,6 +21,7 @@ use Nette,
  * - {form name} ... {/form}
  * - {input name}
  * - {label name /} or {label name}... {/label}
+ * - {inputError name}
  * - {formContainer name} ... {/formContainer}
  *
  * @author     David Grudl
@@ -41,6 +37,7 @@ class FormMacros extends MacroSet
 		$me->addMacro('label', array($me, 'macroLabel'), array($me, 'macroLabelEnd'));
 		$me->addMacro('input', array($me, 'macroInput'), NULL, array($me, 'macroInputAttr'));
 		$me->addMacro('name', array($me, 'macroName'), array($me, 'macroNameEnd'), array($me, 'macroNameAttr'));
+		$me->addMacro('inputError', array($me, 'macroInputError'));
 	}
 
 
@@ -96,9 +93,10 @@ class FormMacros extends MacroSet
 		$name = array_shift($words);
 		return $writer->write(
 			($name[0] === '$' ? '$_input = is_object(%0.word) ? %0.word : $_form[%0.word]; if ($_label = $_input' : 'if ($_label = $_form[%0.word]')
-			. '->getLabel(%1.raw)) echo $_label->addAttributes(%node.array)',
+				. '->%1.raw) echo $_label'
+				. ($node->tokenizer->isNext() ? '->addAttributes(%node.array)' : ''),
 			$name,
-			($words ? 'NULL, ' : '') . implode(', ', array_map(array($writer, 'formatWord'), $words))
+			$words ? ('getLabelPart(' . implode(', ', array_map(array($writer, 'formatWord'), $words)) . ')') : 'getLabel()'
 		);
 	}
 
@@ -109,8 +107,8 @@ class FormMacros extends MacroSet
 	public function macroLabelEnd(MacroNode $node, PhpWriter $writer)
 	{
 		if ($node->content != NULL) {
-			$node->openingCode = substr_replace($node->openingCode, '->startTag()', strrpos($node->openingCode, ')') + 1, 0);
-			return $writer->write('?></label><?php');
+			$node->openingCode = rtrim($node->openingCode, '?> ') . '->startTag() ?>';
+			return $writer->write('if ($_label) echo $_label->endTag()');
 		}
 	}
 
@@ -127,9 +125,10 @@ class FormMacros extends MacroSet
 		$name = array_shift($words);
 		return $writer->write(
 			($name[0] === '$' ? '$_input = is_object(%0.word) ? %0.word : $_form[%0.word]; echo $_input' : 'echo $_form[%0.word]')
-			. '->getControl(%1.raw)->addAttributes(%node.array)',
+				. '->%1.raw'
+				. ($node->tokenizer->isNext() ? '->addAttributes(%node.array)' : ''),
 			$name,
-			implode(', ', array_map(array($writer, 'formatWord'), $words))
+			$words ? 'getControlPart(' . implode(', ', array_map(array($writer, 'formatWord'), $words)) . ')' : 'getControl()'
 		);
 	}
 
@@ -163,19 +162,21 @@ class FormMacros extends MacroSet
 		if ($tagName === 'form') {
 			return $writer->write(
 				'Nette\Latte\Macros\FormMacros::renderFormBegin($form = $_form = '
-				. ($name[0] === '$' ? 'is_object(%0.word) ? %0.word : ' : '')
-				. '$_control[%0.word], %1.var, FALSE)',
+					. ($name[0] === '$' ? 'is_object(%0.word) ? %0.word : ' : '')
+					. '$_control[%0.word], %1.var, FALSE)',
 				$name,
 				array_fill_keys(array_keys($node->htmlNode->attrs), NULL)
 			);
 		} else {
+			$method = $tagName === 'label' ? 'getLabel' : 'getControl';
 			return $writer->write(
 				'$_input = ' . ($name[0] === '$' ? 'is_object(%0.word) ? %0.word : ' : '')
-				. '$_form[%0.word]; echo $_input'
-				. ($tagName === 'label' ? '->getLabel(%1.raw)' : '->getControl(%1.raw)')
-				. ($node->htmlNode->attrs ? '->addAttributes(%2.var)' : '') . '->attributes()',
+					. '$_form[%0.word]; echo $_input->%1.raw'
+					. ($node->htmlNode->attrs ? '->addAttributes(%2.var)' : '') . '->attributes()',
 				$name,
-				implode(', ', array_map(array($writer, 'formatWord'), $words)),
+				$words
+					? $method . 'Part(' . implode(', ', array_map(array($writer, 'formatWord'), $words)) . ')'
+					: "{method_exists(\$_input, '{$method}Part')?'{$method}Part':'{$method}'}()",
 				array_fill_keys(array_keys($node->htmlNode->attrs), NULL)
 			);
 		}
@@ -194,11 +195,27 @@ class FormMacros extends MacroSet
 
 	public function macroNameEnd(MacroNode $node, PhpWriter $writer)
 	{
-		preg_match('#(^.*?>)(.*)(<.*\z)#s', $node->content, $parts);
+		preg_match('#^(.*? n:\w+>)(.*)(<[^?].*)\z#s', $node->content, $parts);
 		if (strtolower($node->htmlNode->name) === 'form') {
 			$node->content = $parts[1] . $parts[2] . '<?php Nette\Latte\Macros\FormMacros::renderFormEnd($_form, FALSE) ?>' . $parts[3];
 		} else { // select, textarea
 			$node->content = $parts[1] . '<?php echo $_input->getControl()->getHtml() ?>' . $parts[3];
+		}
+	}
+
+
+	/**
+	 * {inputError ...}
+	 */
+	public function macroInputError(MacroNode $node, PhpWriter $writer)
+	{
+		$name = $node->tokenizer->fetchWord();
+		if (!$name) {
+			return $writer->write('echo %escape($_input->getError())');
+		} elseif ($name[0] === '$') {
+			return $writer->write('$_input = is_object(%0.word) ? %0.word : $_form[%0.word]; echo %escape($_input->getError())', $name);
+		} else {
+			return $writer->write('echo %escape($_form[%0.word]->getError())', $name);
 		}
 	}
 

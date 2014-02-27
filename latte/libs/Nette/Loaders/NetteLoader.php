@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Loaders;
@@ -19,7 +15,7 @@ use Nette;
  *
  * @author     David Grudl
  */
-class NetteLoader extends AutoLoader
+class NetteLoader extends Nette\Object
 {
 	/** @var NetteLoader */
 	private static $instance;
@@ -104,6 +100,17 @@ class NetteLoader extends AutoLoader
 
 
 	/**
+	 * Register autoloader.
+	 * @param  bool  prepend autoloader?
+	 * @return void
+	 */
+	public function register($prepend = FALSE)
+	{
+		spl_autoload_register(array($this, 'tryLoad'), TRUE, (bool) $prepend);
+	}
+
+
+	/**
 	 * Handles autoloading of classes or interfaces.
 	 * @param  string
 	 * @return void
@@ -116,12 +123,10 @@ class NetteLoader extends AutoLoader
 			trigger_error("Class $type has been renamed to {$this->renamed[$type]}.", E_USER_WARNING);
 
 		} elseif (isset($this->list[$type])) {
-			Nette\Utils\LimitedScope::load(NETTE_DIR . $this->list[$type] . '.php', TRUE);
-			self::$count++;
+			require __DIR__ . '/../' . $this->list[$type] . '.php';
 
-		} elseif (substr($type, 0, 6) === 'Nette\\' && is_file($file = NETTE_DIR . strtr(substr($type, 5), '\\', '/') . '.php')) {
-			Nette\Utils\LimitedScope::load($file, TRUE);
-			self::$count++;
+		} elseif (substr($type, 0, 6) === 'Nette\\' && is_file($file = __DIR__ . '/../' . strtr(substr($type, 5), '\\', '/') . '.php')) {
+			require $file;
 		}
 	}
 

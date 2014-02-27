@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Latte;
@@ -52,6 +48,7 @@ class PhpWriter extends Nette\Object
 	 */
 	public function write($mask)
 	{
+		$mask = preg_replace('#%(node|\d+)\.#', '%$1_', $mask);
 		$me = $this;
 		$mask = Nette\Utils\Strings::replace($mask, '#%escape(\(([^()]*+|(?1))+\))#', function($m) use ($me) {
 			return $me->escapeFilter(new MacroTokens(substr($m[1], 1, -1)))->joinAll();
@@ -62,14 +59,14 @@ class PhpWriter extends Nette\Object
 
 		$args = func_get_args();
 		$pos = $this->tokens->position;
-		$word = strpos($mask, '%node.word') === FALSE ? NULL : $this->tokens->fetchWord();
+		$word = strpos($mask, '%node_word') === FALSE ? NULL : $this->tokens->fetchWord();
 
-		$code = Nette\Utils\Strings::replace($mask, '#([,+]\s*)?%(node\.|\d+\.|)(word|var|raw|array|args)(\?)?(\s*\+\s*)?()#',
+		$code = Nette\Utils\Strings::replace($mask, '#([,+]\s*)?%(node_|\d+_|)(word|var|raw|array|args)(\?)?(\s*\+\s*)?()#',
 		function($m) use ($me, $word, & $args) {
 			list(, $l, $source, $format, $cond, $r) = $m;
 
 			switch ($source) {
-				case 'node.':
+				case 'node_':
 					$arg = $word; break;
 				case '':
 					$arg = next($args); break;
@@ -134,9 +131,9 @@ class PhpWriter extends Nette\Object
 	 * Formats macro arguments to PHP array. (It advances tokenizer to the end as a side effect.)
 	 * @return string
 	 */
-	public function formatArray()
+	public function formatArray(MacroTokens $tokens = NULL)
 	{
-		$tokens = $this->preprocess();
+		$tokens = $this->preprocess($tokens);
 		$tokens = $this->expandFilter($tokens);
 		$tokens = $this->quoteFilter($tokens);
 		return $tokens->joinAll();
@@ -187,7 +184,7 @@ class PhpWriter extends Nette\Object
 
 
 	/**
-	 * Simplified ternary expressions withnout third part.
+	 * Simplified ternary expressions without third part.
 	 * @return MacroTokens
 	 */
 	public function shortTernaryFilter(MacroTokens $tokens)
@@ -201,7 +198,7 @@ class PhpWriter extends Nette\Object
 			} elseif ($tokens->isCurrent(':')) {
 				array_pop($inTernary);
 
-			} elseif (end($inTernary) === $tokens->depth && $tokens->isCurrent(',', ')', ']')) {
+			} elseif ($tokens->isCurrent(',', ')', ']') && end($inTernary) === $tokens->depth + !$tokens->isCurrent(',')) {
 				$res->append(' : NULL');
 				array_pop($inTernary);
 			}
@@ -244,6 +241,7 @@ class PhpWriter extends Nette\Object
 
 	/**
 	 * Pseudocast (expand).
+	 * @return MacroTokens
 	 */
 	public function expandFilter(MacroTokens $tokens)
 	{
@@ -277,8 +275,8 @@ class PhpWriter extends Nette\Object
 		$res = new MacroTokens;
 		while ($tokens->nextToken()) {
 			$res->append($tokens->isCurrent(MacroTokens::T_SYMBOL)
-				&& (!$tokens->isPrev() || $tokens->isPrev(',', '(', '[', '=', '=>', ':', '?'))
-				&& (!$tokens->isNext() || $tokens->isNext(',', ')', ']', '=', '=>', ':', '?'))
+				&& (!$tokens->isPrev() || $tokens->isPrev(',', '(', '[', '=>', ':', '?', '.', '<', '>', '<=', '>=', '===', '!==', '==', '!=', '<>', '&&', '||', '=', 'and', 'or', 'xor'))
+				&& (!$tokens->isNext() || $tokens->isNext(',', ';', ')', ']', '=>', ':', '?', '.', '<', '>', '<=', '>=', '===', '!==', '==', '!=', '<>', '&&', '||', 'and', 'or', 'xor'))
 				? "'" . $tokens->currentValue() . "'"
 				: $tokens->currentToken()
 			);
@@ -289,6 +287,9 @@ class PhpWriter extends Nette\Object
 
 	/**
 	 * Formats modifiers calling.
+	 * @param  MacroTokens
+	 * @param  string
+	 * @throws CompileException
 	 * @return MacroTokens
 	 */
 	public function modifiersFilter(MacroTokens $tokens, $var)
@@ -316,6 +317,9 @@ class PhpWriter extends Nette\Object
 					if ($this->compiler && $tokens->isCurrent('escape')) {
 						$res = $this->escapeFilter($res);
 						$tokens->nextToken('|');
+					} elseif (!strcasecmp($tokens->currentValue(), 'safeurl')) {
+						$res->prepend('Nette\Templating\Helpers::safeUrl(');
+						$inside = TRUE;
 					} else {
 						$res->prepend('$template->' . $tokens->currentValue() . '(');
 						$inside = TRUE;
@@ -359,14 +363,26 @@ class PhpWriter extends Nette\Object
 						return $tokens;
 					case Compiler::CONTEXT_COMMENT:
 						return $tokens->prepend('Nette\Templating\Helpers::escapeHtmlComment(')->append(')');
-						return;
 					case Compiler::CONTENT_JS:
 					case Compiler::CONTENT_CSS:
 						return $tokens->prepend('Nette\Templating\Helpers::escape' . ucfirst($context[0]) . '(')->append(')');
 					default:
 						return $tokens->prepend('Nette\Templating\Helpers::escapeHtml(')->append(', ENT_NOQUOTES)');
 				}
+
 			case Compiler::CONTENT_XML:
+				$context = $this->compiler->getContext();
+				switch ($context[0]) {
+					case Compiler::CONTEXT_COMMENT:
+						return $tokens->prepend('Nette\Templating\Helpers::escapeHtmlComment(')->append(')');
+					default:
+						$tokens->prepend('Nette\Templating\Helpers::escapeXml(')->append(')');
+						if ($context[0] === Compiler::CONTEXT_UNQUOTED_ATTR) {
+							$tokens->prepend("'\"' . ")->append(" . '\"'");
+						}
+						return $tokens;
+				}
+
 			case Compiler::CONTENT_JS:
 			case Compiler::CONTENT_CSS:
 			case Compiler::CONTENT_ICAL:

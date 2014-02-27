@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Database\Table;
@@ -79,7 +75,7 @@ class GroupedSelection extends Selection
 			$this->sqlBuilder->addSelect("$this->name.$this->column");
 		}
 
-		return parent::select($columns);
+		return call_user_func_array('parent::select', func_get_args());
 	}
 
 
@@ -90,7 +86,7 @@ class GroupedSelection extends Selection
 			$this->sqlBuilder->addOrder("$this->name.$this->column" . (preg_match('~\bDESC\z~i', $columns) ? ' DESC' : ''));
 		}
 
-		return parent::order($columns);
+		return call_user_func_array('parent::order', func_get_args());
 	}
 
 

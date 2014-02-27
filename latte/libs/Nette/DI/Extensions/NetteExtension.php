@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\DI\Extensions;
@@ -35,7 +31,7 @@ class NetteExtension extends Nette\DI\CompilerExtension
 		'application' => array(
 			'debugger' => TRUE,
 			'errorPresenter' => 'Nette:Error',
-			'catchExceptions' => NULL, // not %debugMode%
+			'catchExceptions' => '%productionMode%',
 			'mapping' => NULL
 		),
 		'routing' => array(
@@ -51,6 +47,12 @@ class NetteExtension extends Nette\DI\CompilerExtension
 		),
 		'mailer' => array(
 			'smtp' => FALSE,
+			'host' => NULL,
+			'port' => NULL,
+			'username' => NULL,
+			'password' => NULL,
+			'secure' => NULL,
+			'timeout' => NULL,
 		),
 		'database' => array(), // of [name => dsn, user, password, debugger, explain, autowired, reflection]
 		'forms' => array(
@@ -69,6 +71,10 @@ class NetteExtension extends Nette\DI\CompilerExtension
 			'editor' => NULL,
 			'browser' => NULL,
 			'strictMode' => NULL,
+			'maxLen' => NULL,
+			'maxDepth' => NULL,
+			'showLocation' => NULL,
+			'scream' => NULL,
 			'bar' => array(), // of class name
 			'blueScreen' => array(), // of callback
 		),
@@ -82,6 +88,7 @@ class NetteExtension extends Nette\DI\CompilerExtension
 		'debugger' => TRUE,
 		'explain' => TRUE,
 		'reflection' => 'Nette\Database\Reflection\DiscoveredReflection',
+		'autowired' => NULL,
 	);
 
 
@@ -89,12 +96,14 @@ class NetteExtension extends Nette\DI\CompilerExtension
 	{
 		$container = $this->getContainerBuilder();
 		$config = $this->getConfig($this->defaults);
-		$config['application']['catchExceptions'] = !$container->parameters['debugMode'];
 
 		if (isset($config['xhtml'])) {
 			$config['latte']['xhtml'] = $config['xhtml'];
+			unset($config['xhtml']);
 		}
 		$container->addDefinition('nette')->setClass('Nette\DI\Extensions\NetteAccessor', array('@container'));
+
+		$this->validate($config, $this->defaults, 'nette');
 
 		$this->setupCache($container);
 		$this->setupHttp($container, $config['http']);
@@ -104,7 +113,7 @@ class NetteExtension extends Nette\DI\CompilerExtension
 		$this->setupRouting($container, $config['routing']);
 		$this->setupMailer($container, $config['mailer']);
 		$this->setupForms($container);
-		$this->setupTemplating($container, $config['latte']);
+		$this->setupLatte($container, $config['latte']);
 		$this->setupDatabase($container, $config['database']);
 		$this->setupContainer($container, $config['container']);
 	}
@@ -124,12 +133,15 @@ class NetteExtension extends Nette\DI\CompilerExtension
 
 		$container->addDefinition($this->prefix('cache'))
 			->setClass('Nette\Caching\Cache', array(1 => $container::literal('$namespace')))
+			->addSetup('::trigger_error', array('Service cache is deprecated.', E_USER_DEPRECATED))
 			->setParameters(array('namespace' => NULL));
 	}
 
 
 	private function setupHttp(ContainerBuilder $container, array $config)
 	{
+		$this->validate($config, $this->defaults['http'], 'nette.http');
+
 		$container->addDefinition($this->prefix('httpRequestFactory'))
 			->setClass('Nette\Http\RequestFactory')
 			->addSetup('setProxy', array($config['proxy']));
@@ -170,6 +182,8 @@ class NetteExtension extends Nette\DI\CompilerExtension
 
 	private function setupSecurity(ContainerBuilder $container, array $config)
 	{
+		$this->validate($config, $this->defaults['security'], 'nette.security');
+
 		$container->addDefinition($this->prefix('userStorage'))
 			->setClass('Nette\Http\UserStorage');
 
@@ -202,11 +216,12 @@ class NetteExtension extends Nette\DI\CompilerExtension
 
 	private function setupApplication(ContainerBuilder $container, array $config)
 	{
+		$this->validate($config, $this->defaults['application'], 'nette.application');
+
 		$application = $container->addDefinition('application') // no namespace for back compatibility
 			->setClass('Nette\Application\Application')
-			->addSetup('$catchExceptions', $config['catchExceptions'])
-			->addSetup('$errorPresenter', $config['errorPresenter'])
-			->addSetup('!headers_sent() && header(?);', 'X-Powered-By: Nette Framework');
+			->addSetup('$catchExceptions', array($config['catchExceptions']))
+			->addSetup('$errorPresenter', array($config['errorPresenter']));
 
 		if ($config['debugger']) {
 			$application->addSetup('Nette\Application\Diagnostics\RoutingPanel::initializePanel');
@@ -224,6 +239,8 @@ class NetteExtension extends Nette\DI\CompilerExtension
 
 	private function setupRouting(ContainerBuilder $container, array $config)
 	{
+		$this->validate($config, $this->defaults['routing'], 'nette.routing');
+
 		$router = $container->addDefinition('router') // no namespace for back compatibility
 			->setClass('Nette\Application\Routers\RouteList');
 
@@ -241,6 +258,8 @@ class NetteExtension extends Nette\DI\CompilerExtension
 
 	private function setupMailer(ContainerBuilder $container, array $config)
 	{
+		$this->validate($config, $this->defaults['mailer'], 'nette.mailer');
+
 		if (empty($config['smtp'])) {
 			$container->addDefinition($this->prefix('mailer'))
 				->setClass('Nette\Mail\SendmailMailer');
@@ -251,8 +270,9 @@ class NetteExtension extends Nette\DI\CompilerExtension
 
 		$container->addDefinition($this->prefix('mail'))
 			->setClass('Nette\Mail\Message')
+			->addSetup('::trigger_error', array('Service nette.mail is deprecated.', E_USER_DEPRECATED))
 			->addSetup('setMailer')
-			->setShared(FALSE);
+			->setAutowired(FALSE);
 	}
 
 
@@ -260,25 +280,28 @@ class NetteExtension extends Nette\DI\CompilerExtension
 	{
 		$container->addDefinition($this->prefix('basicForm'))
 			->setClass('Nette\Forms\Form')
-			->setShared(FALSE);
+			->addSetup('::trigger_error', array('Service nette.basicForm is deprecated.', E_USER_DEPRECATED))
+			->setAutowired(FALSE);
 	}
 
 
-	private function setupTemplating(ContainerBuilder $container, array $config)
+	private function setupLatte(ContainerBuilder $container, array $config)
 	{
+		$this->validate($config, $this->defaults['latte'], 'nette.latte');
+
 		$latte = $container->addDefinition($this->prefix('latte'))
 			->setClass('Nette\Latte\Engine')
-			->setShared(FALSE);
+			->setAutowired(FALSE);
 
 		if ($config['xhtml']) {
-			$latte->addSetup('$service->getCompiler()->defaultContentType = ?', Nette\Latte\Compiler::CONTENT_XHTML);
+			$latte->addSetup('$service->getCompiler()->defaultContentType = ?', array(Nette\Latte\Compiler::CONTENT_XHTML));
 		}
 
 		$container->addDefinition($this->prefix('template'))
 			->setClass('Nette\Templating\FileTemplate')
 			->addSetup('registerFilter', array($latte))
 			->addSetup('registerHelperLoader', array('Nette\Templating\Helpers::loader'))
-			->setShared(FALSE);
+			->setAutowired(FALSE);
 
 		foreach ($config['macros'] as $macro) {
 			if (strpos($macro, '::') === FALSE && class_exists($macro)) {
@@ -304,7 +327,9 @@ class NetteExtension extends Nette\DI\CompilerExtension
 			if (!is_array($info)) {
 				continue;
 			}
-			$info += $this->databaseDefaults + array('autowired' => $autowired);
+			$this->validate($info, $this->databaseDefaults, 'nette.database');
+
+			$info += array('autowired' => $autowired) + $this->databaseDefaults;
 			$autowired = FALSE;
 
 			foreach ((array) $info['options'] as $key => $value) {
@@ -328,16 +353,16 @@ class NetteExtension extends Nette\DI\CompilerExtension
 			$connection = $container->addDefinition($this->prefix("database.$name"))
 				->setClass('Nette\Database\Connection', array($info['dsn'], $info['user'], $info['password'], $info['options']))
 				->setAutowired($info['autowired'])
-				->addSetup('setSelectionFactory', array(
-					new Nette\DI\Statement('Nette\Database\SelectionFactory', array('@self', $reflection)),
+				->addSetup('setContext', array(
+					new Nette\DI\Statement('Nette\Database\Context', array('@self', $reflection)),
 				))
 				->addSetup('Nette\Diagnostics\Debugger::getBlueScreen()->addPanel(?)', array(
 					'Nette\Database\Diagnostics\ConnectionPanel::renderException'
 				));
 
-			$selectionFactory = $container->addDefinition($this->prefix("database.$name.selectionFactory"))
-				->setClass('Nette\Database\SelectionFactory')
-				->setFactory(array($connection, 'getSelectionFactory'))
+			$container->addDefinition($this->prefix("database.$name.context"))
+				->setClass('Nette\Database\Context')
+				->setFactory(array($connection, 'getContext'))
 				->setAutowired($info['autowired']);
 
 			if ($container->parameters['debugMode'] && $info['debugger']) {
@@ -349,6 +374,8 @@ class NetteExtension extends Nette\DI\CompilerExtension
 
 	private function setupContainer(ContainerBuilder $container, array $config)
 	{
+		$this->validate($config, $this->defaults['container'], 'nette.container');
+
 		if ($config['accessors']) {
 			$container->parameters['container']['accessors'] = TRUE;
 		}
@@ -379,13 +406,13 @@ class NetteExtension extends Nette\DI\CompilerExtension
 					Nette\DI\Compiler::filterArguments(array(is_string($item) ? new Nette\DI\Statement($item) : $item))
 				));
 			}
+		}
 
-			foreach ((array) $config['debugger']['blueScreen'] as $item) {
-				$initialize->addBody($container->formatPhp(
-					'Nette\Diagnostics\Debugger::getBlueScreen()->addPanel(?);',
-					Nette\DI\Compiler::filterArguments(array($item))
-				));
-			}
+		foreach ((array) $config['debugger']['blueScreen'] as $item) {
+			$initialize->addBody($container->formatPhp(
+				'Nette\Diagnostics\Debugger::getBlueScreen()->addPanel(?);',
+				Nette\DI\Compiler::filterArguments(array($item))
+			));
 		}
 
 		if (!empty($container->parameters['tempDir'])) {
@@ -397,9 +424,9 @@ class NetteExtension extends Nette\DI\CompilerExtension
 		}
 
 		if ($config['session']['autoStart'] === 'smart') {
-			$initialize->addBody('$this->getService("session")->exists() && $this->getService("session")->start();');
+			$initialize->addBody('$this->getByType("Nette\Http\Session")->exists() && $this->getByType("Nette\Http\Session")->start();');
 		} elseif ($config['session']['autoStart']) {
-			$initialize->addBody('$this->getService("session")->start();');
+			$initialize->addBody('$this->getByType("Nette\Http\Session")->start();');
 		}
 
 		if ($config['latte']['xhtml']) {
@@ -426,12 +453,16 @@ class NetteExtension extends Nette\DI\CompilerExtension
 			$definitions = $container->definitions;
 			ksort($definitions);
 			foreach ($definitions as $name => $def) {
-				if ($def->shared && Nette\PhpGenerator\Helpers::isIdentifier($name)) {
+				if (Nette\PhpGenerator\Helpers::isIdentifier($name)) {
 					$type = $def->implement ?: $def->class;
 					$class->addDocument("@property $type \$$name");
 				}
 			}
 		}
+
+		$initialize->addBody("@header('X-Powered-By: Nette Framework');");
+		$initialize->addBody("@header('Content-Type: text/html; charset=utf-8');");
+		$initialize->addBody('Nette\Utils\SafeStream::register();');
 	}
 
 
@@ -450,6 +481,15 @@ class NetteExtension extends Nette\DI\CompilerExtension
 		}
 		rmdir("$dir/$uniq");
 		return $isWritable;
+	}
+
+
+	private function validate(array $config, array $expected, $name)
+	{
+		if ($extra = array_diff_key($config, $expected)) {
+			$extra = implode(", $name.", array_keys($extra));
+			throw new Nette\InvalidStateException("Unknown option $name.$extra.");
+		}
 	}
 
 }

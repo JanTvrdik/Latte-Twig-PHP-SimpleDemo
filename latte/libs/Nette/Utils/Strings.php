@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Utils;
@@ -413,9 +409,20 @@ class Strings
 		}, $charlist));
 		$chLen = strlen($charlist);
 
-		static $rand3;
-		if (!$rand3) {
-			$rand3 = md5(serialize($_SERVER), TRUE);
+		if (function_exists('openssl_random_pseudo_bytes')
+			&& (PHP_VERSION_ID >= 50400 || !defined('PHP_WINDOWS_VERSION_BUILD')) // slow in PHP 5.3 & Windows
+		) {
+			$rand3 = openssl_random_pseudo_bytes($length);
+		}
+		if (empty($rand3) && function_exists('mcrypt_create_iv')) {
+			$rand3 = mcrypt_create_iv($length, MCRYPT_DEV_URANDOM);
+		}
+		if (empty($rand3) && @is_readable('/dev/urandom')) {
+			$rand3 = file_get_contents('/dev/urandom', FALSE, NULL, -1, $length);
+		}
+		if (empty($rand3)) {
+			static $cache;
+			$rand3 = $cache ?: $cache = md5(serialize($_SERVER), TRUE);
 		}
 
 		$s = '';
@@ -499,7 +506,7 @@ class Strings
 			restore_error_handler();
 			throw new RegexpException("$message in pattern: $pattern");
 		});
-		$res = preg_match_all(
+		preg_match_all(
 			$pattern, $subject, $m,
 			($flags & PREG_PATTERN_ORDER) ? $flags : ($flags | PREG_SET_ORDER),
 			$offset

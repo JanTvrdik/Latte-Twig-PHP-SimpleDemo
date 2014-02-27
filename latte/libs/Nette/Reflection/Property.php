@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Reflection;
@@ -105,10 +101,11 @@ class Property extends \ReflectionProperty
 
 
 	/**
-	 * @return ClassType
+	 * @deprecated
 	 */
 	public static function getReflection()
 	{
+		trigger_error(__METHOD__ . '() is deprecated.', E_USER_DEPRECATED);
 		return new ClassType(get_called_class());
 	}
 
@@ -127,7 +124,7 @@ class Property extends \ReflectionProperty
 
 	public function __set($name, $value)
 	{
-		return ObjectMixin::set($this, $name, $value);
+		ObjectMixin::set($this, $name, $value);
 	}
 
 

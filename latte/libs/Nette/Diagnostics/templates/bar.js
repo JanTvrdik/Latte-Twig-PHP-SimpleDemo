@@ -35,10 +35,10 @@
 				_this.toFloat();
 			}
 
-		}).bind('mouseenter', function(e) {
+		}).bind('mouseenter', function() {
 			_this.focus();
 
-		}).bind('mouseleave', function(e) {
+		}).bind('mouseleave', function() {
 			_this.blur();
 		});
 
@@ -115,7 +115,7 @@
 		doc.write('<!DOCTYPE html><meta charset="utf-8"><style>' + $('#nette-debug-style').dom().innerHTML + '<\/style><script>' + $('#nette-debug-script').dom().innerHTML + '<\/script><body id="nette-debug">');
 		doc.body.innerHTML = '<div class="nette-panel nette-mode-window" id="' + this.id + '">' + this.elem.dom().innerHTML + '<\/div>';
 		var winPanel = win.Nette.Debug.getPanel(this.id);
-		win.Nette.Debug.initToggle();
+		win.Nette.Dumper.init();
 		winPanel.reposition();
 		doc.title = this.elem.find('h1').dom().innerHTML;
 
@@ -175,7 +175,7 @@
 	var Bar = Nette.DebugBar = function() {
 	};
 
-	Bar.prototype.id = 'nette-debug-bar',
+	Bar.prototype.id = 'nette-debug-bar';
 
 	Bar.prototype.init = function() {
 		var elem = $('#' + this.id), _this = this;
@@ -212,11 +212,12 @@
 						right: panel.elem.position().right + Math.round(Math.random() * 100) + 20,
 						bottom: panel.elem.position().bottom + Math.round(Math.random() * 100) + 20
 					});
+					panel.reposition();
 				}
 			}
 			e.preventDefault();
 
-		}).bind('mouseenter', function(e) {
+		}).bind('mouseenter', function() {
 			if (this.rel && this.rel !== 'close' && !elem.hasClass('nette-dragged')) {
 				var panel = Debug.getPanel(this.rel), link = $(this);
 				panel.focus(function() {
@@ -229,7 +230,7 @@
 				});
 			}
 
-		}).bind('mouseleave', function(e) {
+		}).bind('mouseleave', function() {
 			if (this.rel && this.rel !== 'close' && !elem.hasClass('nette-dragged')) {
 				Debug.getPanel(this.rel).blur();
 			}

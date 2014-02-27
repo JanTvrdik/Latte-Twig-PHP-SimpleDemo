@@ -1,8 +1,8 @@
 {layout layout.latte}
 
-{#title}My personal homepage{/#}
+{block title}My personal homepage{/block}
 
-{#content}
+{block content}
 	<h1>Homepage</h1>
 	{if $pages}
 		<ul n:inner-foreach="$pages as $page">
@@ -11,4 +11,4 @@
 	{else}
 		<p>empty</p>
 	{/if}
-{/#}
+{/block}

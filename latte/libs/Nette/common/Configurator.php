@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette;
@@ -33,6 +29,14 @@ class Configurator extends Object
 
 	/** @var array of function(Configurator $sender, DI\Compiler $compiler); Occurs after the compiler is created */
 	public $onCompile;
+
+	/** @var array */
+	public $defaultExtensions = array(
+		'php' => 'Nette\DI\Extensions\PhpExtension',
+		'constants' => 'Nette\DI\Extensions\ConstantsExtension',
+		'nette' => 'Nette\DI\Extensions\NetteExtension',
+		'extensions' => 'Nette\DI\Extensions\ExtensionsExtension',
+	);
 
 	/** @var array */
 	protected $parameters;
@@ -100,7 +104,9 @@ class Configurator extends Object
 		$debugMode = static::detectDebugMode();
 		return array(
 			'appDir' => isset($trace[1]['file']) ? dirname($trace[1]['file']) : NULL,
-			'wwwDir' => isset($_SERVER['SCRIPT_FILENAME']) ? dirname($_SERVER['SCRIPT_FILENAME']) : NULL,
+			'wwwDir' => isset($_SERVER['SCRIPT_FILENAME'])
+				? dirname(realpath($_SERVER['SCRIPT_FILENAME']))
+				: NULL,
 			'debugMode' => $debugMode,
 			'productionMode' => !$debugMode,
 			'environment' => $debugMode ? 'development' : 'production',
@@ -162,7 +168,7 @@ class Configurator extends Object
 			$cache->save($cacheKey, $code, array($cache::FILES => $dependencies));
 			$cached = $cache->load($cacheKey);
 		}
-		Nette\Utils\LimitedScope::load($cached['file'], TRUE);
+		require_once $cached['file'];
 
 		$container = new $this->parameters['container']['class'];
 		$container->initialize();
@@ -220,10 +226,11 @@ class Configurator extends Object
 	protected function createCompiler()
 	{
 		$compiler = new DI\Compiler;
-		$compiler->addExtension('php', new DI\Extensions\PhpExtension)
-			->addExtension('constants', new DI\Extensions\ConstantsExtension)
-			->addExtension('nette', new DI\Extensions\NetteExtension)
-			->addExtension('extensions', new DI\Extensions\ExtensionsExtension);
+
+		foreach ($this->defaultExtensions as $name => $class) {
+			$compiler->addExtension($name, new $class);
+		}
+
 		return $compiler;
 	}
 

@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Latte;
@@ -51,12 +47,12 @@ class MacroTokens extends Nette\Utils\TokenIterator
 			self::T_WHITESPACE => '\s+',
 			self::T_COMMENT => '(?s)/\*.*?\*/',
 			self::T_STRING => Parser::RE_STRING,
-			self::T_KEYWORD => '(?:true|false|null|and|or|xor|clone|new|instanceof|return|continue|break|[A-Z_][A-Z0-9_]{2,})(?![\w\pL_])', // keyword or const
+			self::T_KEYWORD => '(?:true|false|null|and|or|xor|clone|new|instanceof|return|continue|break|endif|endforeach|endwhile|endswitch|[A-Z_][A-Z0-9_]{2,})(?![\w\pL_])', // keyword or const
 			self::T_CAST => '\((?:expand|string|array|int|integer|float|bool|boolean|object)\)', // type casting
 			self::T_VARIABLE => '\$[\w\pL_]+',
 			self::T_NUMBER => '[+-]?[0-9]+(?:\.[0-9]+)?(?:e[0-9]+)?',
 			self::T_SYMBOL => '[\w\pL_]+(?:-[\w\pL_]+)*',
-			self::T_CHAR => '::|=>|[^"\']', // =>, any char except quotes
+			self::T_CHAR => '::|=>|->|\+\+|--|<<|>>|<=|>=|===|!==|==|!=|<>|&&|\|\||[^"\']', // =>, any char except quotes
 		), 'u');
 		return self::$tokenizer->tokenize($s);
 	}
@@ -132,7 +128,7 @@ class MacroTokens extends Nette\Utils\TokenIterator
 		parent::next();
 		if ($this->isCurrent('[', '(', '{')) {
 			$this->depth++;
-		} elseif ($this->isPrev(']', ')', '}')) {
+		} elseif ($this->isCurrent(']', ')', '}')) {
 			$this->depth--;
 		}
 	}

@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Mail;
@@ -242,7 +238,7 @@ class Message extends MimePart
 			$cids = array();
 			$matches = Strings::matchAll(
 				$html,
-				'#(src\s*=\s*|background\s*=\s*|url\()(["\'])(?![a-z]+:|[/\\#])(.+?)\\2#i',
+				'#(src\s*=\s*|background\s*=\s*|url\()(["\']?)(?![a-z]+:|[/\\#])([^"\')\s]+)#i',
 				PREG_OFFSET_CAPTURE
 			);
 			foreach (array_reverse($matches) as $m) {
@@ -251,7 +247,7 @@ class Message extends MimePart
 					$cids[$file] = substr($this->addEmbeddedFile($file)->getHeader("Content-ID"), 1, -1);
 				}
 				$html = substr_replace($html,
-					"{$m[1][0]}{$m[2][0]}cid:{$cids[$file]}{$m[2][0]}",
+					"{$m[1][0]}{$m[2][0]}cid:{$cids[$file]}",
 					$m[0][1], strlen($m[0][0])
 				);
 			}
@@ -401,7 +397,7 @@ class Message extends MimePart
 			if ($mail->inlines) {
 				$tmp = $alt->setContentType('multipart/related');
 				$alt = $alt->addPart();
-				foreach ($mail->inlines as $name => $value) {
+				foreach ($mail->inlines as $value) {
 					$tmp->addPart($value);
 				}
 			}
@@ -445,8 +441,8 @@ class Message extends MimePart
 	/** @return string */
 	private function getRandomId()
 	{
-		return '<' . Strings::random() . '@' . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST']
-			: (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'localhost'))
+		return '<' . Strings::random() . '@'
+			. preg_replace('#[^\w.-]+#', '', isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : php_uname('n'))
 			. '>';
 	}
 

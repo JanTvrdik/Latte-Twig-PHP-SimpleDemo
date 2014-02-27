@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Forms\Controls;
@@ -40,6 +36,7 @@ class SubmitButton extends Button implements Nette\Forms\ISubmitterControl
 	public function __construct($caption = NULL)
 	{
 		parent::__construct($caption);
+		$this->control->type = 'submit';
 		$this->setOmitted(TRUE);
 	}
 
@@ -51,7 +48,7 @@ class SubmitButton extends Button implements Nette\Forms\ISubmitterControl
 	public function loadHttpData()
 	{
 		parent::loadHttpData();
-		if ($this->value !== NULL) {
+		if ($this->isFilled()) {
 			$this->getForm()->setSubmittedBy($this);
 		}
 	}
@@ -92,7 +89,7 @@ class SubmitButton extends Button implements Nette\Forms\ISubmitterControl
 	 * Gets the validation scope.
 	 * @return array|NULL
 	 */
-	final public function getValidationScope()
+	public function getValidationScope()
 	{
 		return $this->validationScope;
 	}
@@ -120,10 +117,19 @@ class SubmitButton extends Button implements Nette\Forms\ISubmitterControl
 			$scope[] = $control->lookupPath('Nette\Forms\Form');
 		}
 		return parent::getControl($caption)->addAttributes(array(
-			'type' => 'submit',
 			'formnovalidate' => $this->validationScope !== NULL,
 			'data-nette-validation-scope' => $scope ? json_encode($scope) : NULL,
 		));
+	}
+
+
+	/**
+	 * Submitted validator: has been button pressed?
+	 * @return bool
+	 */
+	public static function validateSubmitted(SubmitButton $control)
+	{
+		return $control->isSubmittedBy();
 	}
 
 }

@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Forms\Controls;
@@ -23,12 +19,23 @@ class Button extends BaseControl
 {
 
 	/**
+	 * @param  string  caption
+	 */
+	public function __construct($caption = NULL)
+	{
+		parent::__construct($caption);
+		$this->control->type = 'button';
+	}
+
+
+	/**
 	 * Is button pressed?
 	 * @return bool
 	 */
 	public function isFilled()
 	{
-		return (bool) $this->getValue();
+		$value = $this->getValue();
+		return $value !== NULL && $value !== array();
 	}
 
 
@@ -52,8 +59,8 @@ class Button extends BaseControl
 		$this->setOption('rendered', TRUE);
 		$el = clone $this->control;
 		return $el->addAttributes(array(
-			'type' => 'button',
 			'name' => $this->getHtmlName(),
+			'id' => $this->getHtmlId(),
 			'disabled' => $this->isDisabled(),
 			'value' => $this->translate($caption === NULL ? $this->caption : $caption),
 		));

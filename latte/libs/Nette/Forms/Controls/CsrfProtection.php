@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Forms\Controls;
@@ -60,13 +56,25 @@ class CsrfProtection extends HiddenField
 
 
 	/**
+	 * @return string
+	 */
+	private function generateToken($random = NULL)
+	{
+		if ($random === NULL) {
+			$random = Nette\Utils\Strings::random(10);
+		}
+		return $random . base64_encode(sha1($this->getToken() . $random, TRUE));
+	}
+
+
+	/**
 	 * Generates control's HTML element.
 	 *
 	 * @return Nette\Utils\Html
 	 */
 	public function getControl()
 	{
-		return parent::getControl()->value($this->getToken());
+		return parent::getControl()->value($this->generateToken());
 	}
 
 
@@ -75,7 +83,8 @@ class CsrfProtection extends HiddenField
 	 */
 	public static function validateCsrf(CsrfProtection $control)
 	{
-		return $control->getValue() === $control->getToken();
+		$value = $control->getValue();
+		return $control->generateToken(substr($value, 0, 10)) === $value;
 	}
 
 

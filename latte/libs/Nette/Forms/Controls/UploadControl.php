@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Forms\Controls;
@@ -92,6 +88,69 @@ class UploadControl extends BaseControl
 	public function isFilled()
 	{
 		return $this->value instanceof FileUpload ? $this->value->isOk() : (bool) $this->value; // ignore NULL object
+	}
+
+
+	/********************* validators ****************d*g**/
+
+
+	/**
+	 * FileSize validator: is file size in limit?
+	 * @param  UploadControl
+	 * @param  int  file size limit
+	 * @return bool
+	 */
+	public static function validateFileSize(UploadControl $control, $limit)
+	{
+		foreach (static::toArray($control->getValue()) as $file) {
+			if ($file->getSize() > $limit || $file->getError() === UPLOAD_ERR_INI_SIZE) {
+				return FALSE;
+			}
+		}
+		return TRUE;
+	}
+
+
+	/**
+	 * MimeType validator: has file specified mime type?
+	 * @param  UploadControl
+	 * @param  array|string  mime type
+	 * @return bool
+	 */
+	public static function validateMimeType(UploadControl $control, $mimeType)
+	{
+		$mimeTypes = is_array($mimeType) ? $mimeType : explode(',', $mimeType);
+		foreach (static::toArray($control->getValue()) as $file) {
+			$type = strtolower($file->getContentType());
+			if (!in_array($type, $mimeTypes, TRUE) && !in_array(preg_replace('#/.*#', '/*', $type), $mimeTypes, TRUE)) {
+				return FALSE;
+			}
+		}
+		return TRUE;
+	}
+
+
+	/**
+	 * Image validator: is file image?
+	 * @return bool
+	 */
+	public static function validateImage(UploadControl $control)
+	{
+		foreach (static::toArray($control->getValue()) as $file) {
+			if (!$file->isImage()) {
+				return FALSE;
+			}
+		}
+		return TRUE;
+	}
+
+
+	/**
+	 * @return array
+	 */
+	public static function toArray($value)
+	{
+		return $value instanceof FileUpload ? array($value) : (array) $value;
 	}
 
 }

@@ -2,11 +2,7 @@
 
 /**
  * This file is part of the Nette Framework (http://nette.org)
- *
  * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
- *
- * For the full copyright and license information, please view
- * the file license.txt that was distributed with this source code.
  */
 
 namespace Nette\Forms\Controls;
@@ -77,17 +73,25 @@ class TextInput extends TextBase
 		foreach ($this->getRules() as $rule) {
 			if ($rule->isNegative || $rule->type !== Nette\Forms\Rule::VALIDATOR) {
 
-			} elseif ($rule->operation === Nette\Forms\Form::RANGE && $input->type !== 'text') {
-				$input->min = isset($rule->arg[0]) && is_scalar($rule->arg[0]) ? $rule->arg[0] : NULL;
-				$input->max = isset($rule->arg[1]) && is_scalar($rule->arg[1]) ? $rule->arg[1] : NULL;
+			} elseif ($rule->operation === Nette\Forms\Form::RANGE
+				&& in_array($input->type, array('number', 'range', 'datetime-local', 'datetime', 'date', 'month', 'week', 'time'))
+			) {
+				if (isset($rule->arg[0]) && is_scalar($rule->arg[0])) {
+					$input->min = isset($input->min) ? max($input->min, $rule->arg[0]) : $rule->arg[0];
+				}
+				if (isset($rule->arg[1]) && is_scalar($rule->arg[1])) {
+					$input->max = isset($input->max) ? min($input->max, $rule->arg[1]) : $rule->arg[1];
+				}
 
-			} elseif ($rule->operation === Nette\Forms\Form::PATTERN && is_scalar($rule->arg)) {
+			} elseif ($rule->operation === Nette\Forms\Form::PATTERN && is_scalar($rule->arg)
+				&& in_array($input->type, array('text', 'search', 'tel', 'url', 'email', 'password'))
+			) {
 				$input->pattern = $rule->arg;
 			}
 		}
 
 		if ($input->type !== 'password') {
-			$input->value = $this->getValue() === '' ? $this->translate($this->emptyValue) : $this->value;
+			$input->value = $this->rawValue === '' ? $this->translate($this->emptyValue) : $this->rawValue;
 		}
 		return $input;
 	}
