@@ -1,5 +1,9 @@
 <?php
-require_once __DIR__ . '/libs/Nette/loader.php';
+require __DIR__ . '/libs/Nette/common/exceptions.php';
+require __DIR__ . '/libs/Nette/common/Object.php';
+require __DIR__ . '/libs/Nette/Loaders/NetteLoader.php';
+
+Nette\Loaders\NetteLoader::getInstance()->register();
 
 // uncomment to enable better error visualization
 // Nette\Diagnostics\Debugger::enable();
